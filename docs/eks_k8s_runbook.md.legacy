@@ -1,0 +1,488 @@
+# EKS / Kubernetes / AWS Platform Runbook (ALL-IN-ONE)
+
+Audience: Platform Engineers, DevOps, SRE  
+Intent: This document is a single source of truth for operating, debugging, and stabilizing workloads on AWS EKS.
+
+---
+
+**CONTENTS**
+- Quick Reference
+- Section 1 — Core Mental Model
+- Section 2 — Basic Kubernetes Navigation
+- Section 3 — Quick Triage Checklist (First 10 minutes)
+- Section 4 — Safe kubectl Patterns
+- Section 5 — Ingress & Load Balancing
+- Section 6 — Service → EndpointSlice
+- Section 7 — Pods, Probes, Containers
+- Section 8 — Helm Reality Check
+- Section 9 — ArgoCD / GitOps
+- Section 10 — Secrets & Encryption (ExternalSecrets, KMS)
+- Section 11 — WebSockets / Reverb (Patterns)
+- Section 12 — EKS / AWS Specifics (CNI, Node handling, LB controller)
+- Section 13 — Storage & Backups (PVC, Velero, snapshots)
+- Section 14 — RDS (DB triage & restore drill)
+- Section 15 — Redis (diagnostics)
+- Section 16 — Observability & Alerts (Prometheus / Grafana / Loki)
+- Section 17 — Platform Guardrails
+- Section 18 — Incident Appendix (Real Scenarios)
+- Section 19 — Disaster Recovery Playbooks
+- Section 20 — Postmortem & Templates
+- Section 21 — Tooling Cheatsheet & Debug Recipes
+- Section 22 — Publishing & Docs Workflow
+- Appendix: Glossary, TL;DR & Common Commands
+
+---
+
+SECTION 1 — CORE MENTAL MODEL
+- Always reason outside → inside:
+  Browser → DNS → AWS LB (ALB/NLB) → Ingress Controller → Kubernetes Service → EndpointSlice → Pod → Container → App → Dependency (DB/Redis/S3/External API)
+- If something is broken, only one hop is broken. Find it.
+
+---
+
+SECTION 2 — BASIC KUBERNETES NAVIGATION
+Namespaces:
+```bash
+kubectl get ns
+kubectl config set-context --current --namespace=<ns>
+kubectl config view --minify --output 'jsonpath={..namespace}'
+```
+
+Core resources:
+```bash
+kubectl get pods
+kubectl get svc
+kubectl get deploy
+kubectl get ingress
+kubectl get cm
+kubectl get secret
+```
+
+Wide view:
+```bash
+kubectl get pods -o wide
+kubectl get nodes -o wide
+```
+
+---
+
+SECTION 3 — QUICK TRIAGE CHECKLIST (FIRST 10 MINUTES)
+1. **Check pod status**: `kubectl get pods -n <ns>`
+2. **Check ingress**: `kubectl get ingress -n <ns> -o wide`
+3. **Check service endpoints**: `kubectl get endpointslice -n <ns>`
+4. **Check recent events**: `kubectl get events -n <ns> --sort-by='.metadata.creationTimestamp'`
+5. **Check logs of affected pods**: `kubectl logs <pod> -n <ns> --tail=100`
+
+---
+
+SECTION 4 — SAFE KUBECTL PATTERNS
+- Always use `--namespace=<ns>` for clarity.
+- Use `kubectl get ... -o wide` to reveal more info.
+- Prefer `kubectl describe` over `kubectl edit` for diagnostics.
+- Use `kubectl logs -f` for live log tailing.
+- For resource diffs, use `kubectl diff -f <file>`.
+
+---
+
+SECTION 5 — INGRESS & LOAD BALANCING
+Inspect ingress:
+```bash
+kubectl get ingress -o yaml
+kubectl describe ingress <name>
+```
+
+Inspect routing truth:
+```bash
+kubectl get ingress <name> -o yaml | yq '.spec.rules[].http.paths'
+```
+
+Ingress controller logs:
+```bash
+kubectl -n ingress-nginx logs deploy/ingress-nginx-controller --tail=200
+```
+
+Common failures:
+- Catch-all / overrides specific paths
+- Helm template ignores per-path backends
+- Service name mismatch
+
+---
+
+SECTION 6 — SERVICE → ENDPOINTSLICE
+Service exists?
+```bash
+kubectl get svc <svc>
+```
+
+Endpoints exist?
+```bash
+kubectl get endpointslice -l kubernetes.io/service-name=<svc>
+```
+
+Selector match?
+```bash
+kubectl get svc <svc> -o jsonpath='{.spec.selector}'
+kubectl get pods --show-labels
+```
+
+---
+
+SECTION 7 — PODS, PROBES, CONTAINERS
+Pod health:
+```bash
+kubectl get pods
+kubectl describe pod <pod>
+```
+
+Logs:
+```bash
+kubectl logs <pod>
+kubectl logs <pod> -c <container>
+kubectl logs deploy/<deploy>
+```
+
+Check ports:
+```bash
+kubectl exec -it <pod> -- ss -ltnp
+```
+
+Probe rules:
+- Startup probe must allow cold boot
+- Readiness controls traffic
+- Liveness restarts only if wedged
+
+---
+
+SECTION 8 — HELM REALITY CHECK
+Never trust values.yaml.
+
+Render:
+```bash
+helm template <release> ./chart -f values.yaml > rendered.yaml
+```
+
+Compare:
+```bash
+kubectl get <resource> -o yaml
+```
+
+---
+
+SECTION 9 — ARGOCD / GITOPS
+Application state:
+```bash
+kubectl -n argocd get applications
+kubectl -n argocd describe application <app>
+```
+
+Live resources:
+```bash
+kubectl get all -n <ns>
+```
+
+---
+
+SECTION 10 — SECRETS & ENCRYPTION (EXTERNALSECRETS, KMS)
+Status:
+```bash
+kubectl get externalsecret
+kubectl describe externalsecret <name>
+```
+
+Generated secret:
+```bash
+kubectl get secret <name> -o yaml
+```
+
+Decode:
+```bash
+kubectl get secret <name> -o jsonpath='{.data.KEY}' | base64 -d
+```
+
+Force refresh:
+```bash
+kubectl annotate externalsecret <name> force-sync="$(date +%s)" --overwrite
+```
+
+---
+
+SECTION 11 — WEBSOCKETS / REVERB (PATTERNS)
+Correct pattern:
+- Browser → 443
+- Ingress → reverb:6001
+
+Check routing:
+```bash
+kubectl get ingress <name> -o yaml | yq '.spec.rules[].http.paths'
+```
+
+Check reverb:
+```bash
+kubectl logs deploy/<app>-reverb
+kubectl exec -it <reverb-pod> -- ss -ltnp | grep 6001
+```
+
+Frontend must NOT use :6001.
+
+---
+
+SECTION 12 — EKS / AWS SPECIFICS (CNI, NODE HANDLING, LB CONTROLLER)
+Nodes:
+```bash
+kubectl get nodes
+kubectl describe node <node>
+```
+
+IRSA:
+```bash
+kubectl describe sa <sa>
+aws sts get-caller-identity
+```
+
+Load balancers:
+```bash
+aws elbv2 describe-load-balancers
+```
+
+---
+
+SECTION 13 — STORAGE & BACKUPS (PVC, VELERO, SNAPSHOTS)
+Check PVCs:
+```bash
+kubectl get pvc -n <ns>
+```
+
+Check Velero backups:
+```bash
+velero backup get
+```
+
+Restore from snapshot:
+1. Identify snapshot ID.
+2. Create volume from snapshot.
+3. Restore PVC from volume.
+
+---
+
+SECTION 14 — RDS (DB TRIAGE & RESTORE DRILL)
+Max connections:
+```sql
+SHOW PROCESSLIST;
+```
+
+Fix:
+- Kill idle
+- Pooling
+- Reduce concurrency
+
+Restore drill:
+1. Identify last good snapshot.
+2. Restore to new instance.
+3. Update app secret.
+4. Restart app pods.
+5. Verify data integrity.
+
+---
+
+SECTION 15 — REDIS (DIAGNOSTICS)
+```bash
+redis-cli INFO clients
+redis-cli MONITOR
+```
+
+---
+
+SECTION 16 — OBSERVABILITY & ALERTS (PROMETHEUS / GRAFANA / LOKI)
+Common alerts:
+- High 5xx rate
+- Pod CrashLoopBackOff
+- DB connections exhausted
+- Redis queue stuck
+
+---
+
+SECTION 17 — PLATFORM GUARDRAILS
+These are **rules**, not suggestions.
+
+❌ App teams MUST NOT:
+- Edit Ingress resources
+- Edit Services
+- Edit ExternalSecrets / SecretStores
+- Touch IRSA / IAM
+- Expose ports other than 80/443
+- Change probes without review
+
+✅ App teams MAY:
+- Read logs
+- Describe pods
+- Change app‑level env vars (via values)
+- Scale replicas (if allowed)
+
+Violation of guardrails = platform instability.
+
+---
+
+SECTION 18 — INCIDENT APPENDIX (REAL SCENARIOS)
+INCIDENT 1: WebSocket / Reverb outage
+
+Symptoms:
+- Frontend attempts wss://host:6001
+- 404 or connection refused
+
+Root Cause:
+- Ingress routed /app to app service
+- Frontend misconfigured port
+
+Fix:
+- Route /app → reverb:6001
+- Frontend uses 443
+
+Prevention:
+- Ingress template enforces per‑path backends
+- CI lint for VITE_REVERB_PORT != 443
+
+────────────────────────────────────────
+
+INCIDENT 2: 503 on /login
+
+Symptoms:
+- Ingress returns 503
+- Pods running
+
+Root Cause:
+- Service name mismatch
+- No endpoints
+
+Fix:
+- Align ingress backend service name
+
+────────────────────────────────────────
+
+INCIDENT 3: CrashLoopBackOff
+
+Symptoms:
+- Pod restarts
+- Startup probe fails
+
+Root Cause:
+- Probe too aggressive
+- DB unavailable on boot
+
+Fix:
+- Increase startup delay
+- Defer DB‑dependent checks
+
+---
+
+SECTION 19 — DISASTER RECOVERY PLAYBOOKS
+DR is not backups.  
+DR is **restoring under pressure**.
+
+------------------------------------------------
+RDS Restore Drill
+------------------------------------------------
+1. Identify last good snapshot
+2. Restore to new instance
+3. Update app secret
+4. Restart app pods
+5. Verify data integrity
+
+------------------------------------------------
+Secrets Restore Drill
+------------------------------------------------
+1. Validate secret source (SSM/Secrets Manager)
+2. Force ExternalSecret refresh
+3. Restart dependent pods
+
+------------------------------------------------
+Ingress / LB Restore
+------------------------------------------------
+1. Verify DNS
+2. Verify certificate
+3. Reapply ingress from Git
+4. Validate routing
+
+---
+
+SECTION 20 — POSTMORTEM & TEMPLATES
+Incident Summary:
+- Date / Time:
+- Impact:
+- Duration:
+
+Detection:
+- Alert:
+- Who noticed:
+
+Root Cause:
+- Technical cause:
+- Human cause:
+
+Timeline:
+- T0:
+- T+X:
+
+Resolution:
+- What fixed it:
+
+Prevention:
+- What changes:
+
+Lessons:
+- What surprised us:
+
+This document must be written **within 48 hours**.
+
+---
+
+SECTION 21 — TOOLING CHEATSHEET & DEBUG RECIPES
+Common commands:
+```bash
+kubectl get all -n <ns>
+kubectl describe pod <pod> -n <ns>
+kubectl logs <pod> -n <ns> --tail=100
+```
+
+Useful scripts:
+- **Restart deployment**: `kubectl rollout restart deploy/<deploy> -n <ns>`
+- **Scale deployment**: `kubectl scale deploy/<deploy> --replicas=<num> -n <ns>`
+- **Get pod shell**: `kubectl exec -it <pod> -- /bin/sh`
+
+---
+
+SECTION 22 — PUBLISHING & DOCS WORKFLOW
+- All changes must go through Git.
+- No direct edits in production.
+- Use PRs for visibility.
+- Document every change.
+
+---
+
+SECTION 23 — GLOSSARY
+- **Pod**: The smallest deployable unit in Kubernetes.
+- **Service**: An abstraction that defines a logical set of Pods and a policy by which to access them.
+- **Ingress**: Manages external access to the services, typically HTTP.
+- **EndpointSlice**: A scalable way to track network endpoints.
+
+---
+
+SECTION 24 — TL;DR & COMMON COMMANDS
+- Check pod status: `kubectl get pods -n <ns>`
+- Check service endpoints: `kubectl get endpointslice -n <ns>`
+- Check ingress: `kubectl get ingress -n <ns> -o wide`
+- View logs: `kubectl logs <pod> -n <ns> --tail=100`
+
+---
+
+How to apply (runs locally on Linux):
+```bash
+# Backup current file first
+cp docs/eks_k8s_runbook.md docs/eks_k8s_runbook.md.bak
+
+# Overwrite with the new content (run from repo root)
+cat > docs/eks_k8s_runbook.md <<'EOF'
+[PASTE THE ENTIRE UPDATED FILE CONTENT FROM ABOVE HERE]
+EOF
+```
+
+
