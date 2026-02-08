@@ -34,3 +34,8 @@ If something is broken, only one hop is broken. Find it.
 - [Postmortem & Templates](postmortem.md)
 - [Tooling Cheatsheet](cheatsheet.md)
 - [Glossary](glossary.md)
+
+## Cookbooks (Step-by-Step)
+- [Debug Pod Crash Loops](cookbooks/debug-pod-crash-loop.md)
+- [Database Migrations](cookbooks/database-migration.md)
+- [Helm Charts - Packaging & Deployment](cookbooks/helm-charts.md)

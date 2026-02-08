@@ -11,4 +11,6 @@ PowerShell-first guide to Windows Server management.
 
 ## Cookbooks (Step-by-Step)
 - [IIS Web Server (PowerShell)](cookbooks/iis-web-server.md)
+- [Windows Server Management & Troubleshooting](cookbooks/server-management-powershell.md)
+- [Active Directory & Group Policy](cookbooks/active-directory-group-policy.md)
 

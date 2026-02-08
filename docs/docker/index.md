@@ -10,4 +10,5 @@
 
 ## Cookbooks (Step-by-Step)
 - [Production Full Stack (Node + Redis + Postgres)](cookbooks/complete-stack.md)
+- [Nginx Reverse Proxy & Load Balancing](cookbooks/nginx-reverse-proxy.md)
 

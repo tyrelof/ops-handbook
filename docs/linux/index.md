@@ -13,4 +13,6 @@ Complete guide to operating Linux in a server/cloud environment.
 ## Cookbooks (Step-by-Step)
 - [Nginx Web Server from Scratch](cookbooks/web-server-nginx.md)
 - [Basic Server Hardening](cookbooks/security-hardening.md)
+- [Monitoring & Performance Debugging](cookbooks/monitoring-performance.md)
+- [SSH Configuration & Key Management](cookbooks/ssh-management.md)
 
