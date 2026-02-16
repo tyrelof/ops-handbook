@@ -22,6 +22,9 @@ Welcome to the unified reference documentation. This book covers operating, debu
 - [Monitoring](monitoring/index.md)
 - [Infrastructure Automation](automation/index.md)
 
+### Archive
+- [History & Expansion Notes](history/README.md)
+
 ---
 **Author**: Tyrel Orde Fecha (SysAdmin, Network Admin, Cloud Engineer, DevOps, Platform Engineer)
 

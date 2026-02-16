@@ -1,25 +1,46 @@
 # Infrastructure & Platform Reference Book
 
-A comprehensive collection of runbooks, cookbooks, and reference guides for operating modern infrastructure stacks.
+A practical operations handbook for day-to-day infrastructure work.
 
-## ✍️ Author
+## Author
 **Tyrel Orde Fecha**
 *SysAdmin | Network Admin | Cloud Engineer | DevOps | Platform Engineer*
 
-## 📚 Contents
+## Entry Points
 
-This repository is organized into the following sections:
+Start with one of these:
 
-- **[Kubernetes / EKS](docs/kubernetes/index.md)**: Deep-dive operational runbooks for EKS.
-- **[Linux](docs/linux/index.md)**: Server administration, hardening, and troubleshooting cookbooks.
-- **[Docker](docs/docker/index.md)**: Container lifecycle, full-stack deployments, and debugging.
-- **[Windows](docs/windows/index.md)**: PowerShell automation and IIS management.
+- **[Documentation Hub](docs/index.md)**: Canonical index for all domains and cookbooks.
+- **[Start Here](START_HERE.md)**: Role-based onboarding path.
+- **[Quick Reference](QUICK_REFERENCE.md)**: Incident-first troubleshooting and checklists.
 
-## 🚀 How to Use
-Navigate to the `docs/` directory or click the links above to browse the documentation. Each section contains:
-- **Reference Guides**: Quick lookups for commands and concepts.
-- **Cookbooks**: Step-by-step implementation guides.
-- **Troubleshooting**: Triage patterns for common issues.
+Primary technical sections:
+
+- **[Kubernetes / EKS](docs/kubernetes/index.md)**
+- **[Linux](docs/linux/index.md)**
+- **[Docker](docs/docker/index.md)**
+- **[Windows](docs/windows/index.md)**
+
+Additional domains are available from **[docs/index.md](docs/index.md)** (Cisco, VMware, Databases, Monitoring, Networking, Security, Storage, Automation).
+
+## How to Use
+
+1. Open **[docs/index.md](docs/index.md)**.
+2. Select the closest domain section.
+3. Use reference pages for lookup and cookbooks for procedures.
+4. For active incidents, start from **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)**.
+
+## Root File Policy
+
+Keep the repository root minimal and navigation-focused.
+
+- Keep only **README.md**, **START_HERE.md**, **QUICK_REFERENCE.md**, and **docs/** at root.
+- Add all domain content under **docs/** and its section folders.
+- Store one-time rollout, expansion, or migration notes in **docs/history/**.
+- Treat **[docs/index.md](docs/index.md)** as the canonical navigation source.
+
+Legacy expansion snapshots are archived in **[docs/history/README.md](docs/history/README.md)**.
 
 ---
-*Maintained by Tyrel Orde Fecha.*
+Personal Infrastructure Knowledge Base  
+Versioned and continuously refined through production experience.
